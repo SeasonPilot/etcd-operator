@@ -19,9 +19,12 @@ package controllers
 import (
 	"context"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	etcdv1alpha1 "github.com/SeasonPilot/etcd-operator/api/v1alpha1"
@@ -47,9 +50,37 @@ type EtcdClusterReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	l := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var cluster *etcdv1alpha1.EtcdCluster
+	err := r.Get(ctx, req.NamespacedName, cluster)
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var headlessSvc *corev1.Service
+	headlessSvc.Namespace = cluster.Namespace
+	headlessSvc.Name = cluster.Name
+	or, err := ctrl.CreateOrUpdate(ctx, r, headlessSvc, func() error {
+		mutateSvc(cluster, headlessSvc)
+		return controllerutil.SetControllerReference(cluster, headlessSvc, r.Scheme)
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	l.Info("CreateOrUpdate Headless Service", "Result", or)
+
+	var sts *appsv1.StatefulSet
+	sts.Namespace = cluster.Namespace
+	sts.Name = cluster.Name
+	or, err = ctrl.CreateOrUpdate(ctx, r, sts, func() error {
+		mutateSts(cluster, sts)
+		return controllerutil.SetControllerReference(cluster, sts, r.Scheme)
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	l.Info("CreateOrUpdate StatefulSet", "Result", or)
 
 	return ctrl.Result{}, nil
 }
