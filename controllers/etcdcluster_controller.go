@@ -36,7 +36,11 @@ type EtcdClusterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// fixme: 小写复数
+
 //+kubebuilder:rbac:groups=etcd.season.io,resources=etcdclusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=etcd.season.io,resources=etcdclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=etcd.season.io,resources=etcdclusters/finalizers,verbs=update
 
@@ -52,16 +56,20 @@ type EtcdClusterReconciler struct {
 func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
-	var cluster *etcdv1alpha1.EtcdCluster
+	//var cluster *etcdv1alpha1.EtcdCluster // fixme: nil
+	var cluster = &etcdv1alpha1.EtcdCluster{}
 	err := r.Get(ctx, req.NamespacedName, cluster)
 	if err != nil {
+		l.Error(err, "Get EtcdCluster failed", "EtcdCluster", cluster)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	var headlessSvc *corev1.Service
+	l.Info("Get EtcdCluster success")
+
+	var headlessSvc = &corev1.Service{}
 	headlessSvc.Namespace = cluster.Namespace
 	headlessSvc.Name = cluster.Name
-	or, err := ctrl.CreateOrUpdate(ctx, r, headlessSvc, func() error {
+	or, err := ctrl.CreateOrUpdate(ctx, r.Client, headlessSvc, func() error {
 		mutateSvc(cluster, headlessSvc)
 		return controllerutil.SetControllerReference(cluster, headlessSvc, r.Scheme)
 	})
@@ -70,10 +78,10 @@ func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	l.Info("CreateOrUpdate Headless Service", "Result", or)
 
-	var sts *appsv1.StatefulSet
+	var sts = &appsv1.StatefulSet{}
 	sts.Namespace = cluster.Namespace
 	sts.Name = cluster.Name
-	or, err = ctrl.CreateOrUpdate(ctx, r, sts, func() error {
+	or, err = ctrl.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		mutateSts(cluster, sts)
 		return controllerutil.SetControllerReference(cluster, sts, r.Scheme)
 	})
@@ -89,5 +97,7 @@ func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *EtcdClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&etcdv1alpha1.EtcdCluster{}).
+		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }
