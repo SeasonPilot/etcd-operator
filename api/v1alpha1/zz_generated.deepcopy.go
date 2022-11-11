@@ -89,7 +89,7 @@ func (in *EtcdClusterSpec) DeepCopyInto(out *EtcdClusterSpec) {
 	*out = *in
 	if in.Size != nil {
 		in, out := &in.Size, &out.Size
-		*out = new(uint)
+		*out = new(int32)
 		**out = **in
 	}
 }
