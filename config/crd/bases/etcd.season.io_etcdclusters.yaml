@@ -15,7 +15,20 @@ spec:
     singular: etcdcluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: The Docker Image of MyAPP
+      jsonPath: .spec.image
+      name: Image
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - description: Replicas of Etcd
+      jsonPath: .spec.size
+      name: Size
+      type: integer
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: EtcdCluster is the Schema for the etcdclusters API
