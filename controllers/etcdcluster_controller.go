@@ -22,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -69,26 +70,30 @@ func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var headlessSvc = &corev1.Service{}
 	headlessSvc.Namespace = cluster.Namespace
 	headlessSvc.Name = cluster.Name
-	or, err := ctrl.CreateOrUpdate(ctx, r.Client, headlessSvc, func() error {
-		mutateSvc(cluster, headlessSvc)
-		return controllerutil.SetControllerReference(cluster, headlessSvc, r.Scheme)
-	})
-	if err != nil {
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		or, err := ctrl.CreateOrUpdate(ctx, r.Client, headlessSvc, func() error {
+			mutateSvc(cluster, headlessSvc)
+			return controllerutil.SetControllerReference(cluster, headlessSvc, r.Scheme)
+		})
+		l.Info("CreateOrUpdate Headless Service", "Result", or)
+		return err
+	}); err != nil {
 		return ctrl.Result{}, err
 	}
-	l.Info("CreateOrUpdate Headless Service", "Result", or)
 
 	var sts = &appsv1.StatefulSet{}
 	sts.Namespace = cluster.Namespace
 	sts.Name = cluster.Name
-	or, err = ctrl.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		mutateSts(cluster, sts)
-		return controllerutil.SetControllerReference(cluster, sts, r.Scheme)
-	})
-	if err != nil {
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		or, err := ctrl.CreateOrUpdate(ctx, r.Client, sts, func() error {
+			mutateSts(cluster, sts)
+			return controllerutil.SetControllerReference(cluster, sts, r.Scheme)
+		})
+		l.Info("CreateOrUpdate StatefulSet", "Result", or)
+		return err
+	}); err != nil {
 		return ctrl.Result{}, err
 	}
-	l.Info("CreateOrUpdate StatefulSet", "Result", or)
 
 	return ctrl.Result{}, nil
 }
