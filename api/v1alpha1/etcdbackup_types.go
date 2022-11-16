@@ -28,14 +28,41 @@ type EtcdBackupSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of EtcdBackup. Edit etcdbackup_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	EtcdURL      string `json:"etcdUrl"`
+	StorageType  string `json:"storageType"`
+	BackupSource `json:",inline"`
 }
+
+type BackupSource struct {
+	S3  S3BackupSource  `json:"s3,omitempty"`
+	OSS OSSBackupSource `json:"oss,omitempty"`
+}
+
+type S3BackupSource struct {
+	Path     string `json:"path"`
+	S3Secret string `json:"s3Secret"`
+}
+
+type OSSBackupSource struct {
+	Path      string `json:"path"`
+	OSSSecret string `json:"ossSecret"`
+}
+
+type EtcdBackupPhase string
+
+var (
+	EtcdBackupPhaseCompleted EtcdBackupPhase = "Completed"
+	EtcdBackupPhaseBackingup EtcdBackupPhase = "BackingUp"
+	EtcdBackupPhaseFailed    EtcdBackupPhase = "Failed"
+)
 
 // EtcdBackupStatus defines the observed state of EtcdBackup
 type EtcdBackupStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Phase          EtcdBackupPhase `json:"status,omitempty"`
+	StartTime      *metav1.Time    `json:"startTime,omitempty"`
+	CompletionTime *metav1.Time    `json:"completeTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
