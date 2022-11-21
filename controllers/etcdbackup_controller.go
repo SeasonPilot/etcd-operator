@@ -39,29 +39,33 @@ type EtcdBackupReconciler struct {
 }
 
 // 设置实际任务 pod
-func (r *EtcdBackupReconciler) setStateActual(ctx context.Context, state backupState) error {
+func (r *EtcdBackupReconciler) setStateActual(ctx context.Context, state *backupState) error {
+	var actual backupStateContainer
+
 	key := client.ObjectKey{
 		Namespace: state.backup.Name,
 		Name:      state.backup.Namespace,
 	}
 
-	var pod = &corev1.Pod{}
+	actual.pod = &corev1.Pod{}
 
-	err := r.Get(ctx, key, pod)
+	err := r.Get(ctx, key, actual.pod)
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
-		state.actual.pod = nil
+		actual.pod = nil
 	}
 
-	state.actual.pod = pod
+	state.actual = &actual
 
 	return nil
 }
 
 // 设置预期任务 pod
-func (r *EtcdBackupReconciler) setStateDesire(state backupState) error {
+func (r *EtcdBackupReconciler) setStateDesire(state *backupState) error {
+	var desired backupStateContainer
+
 	pod := r.podForBackup(*state.backup, r.BackImage)
 
 	err := ctrl.SetControllerReference(state.backup, pod, r.Scheme)
@@ -69,8 +73,8 @@ func (r *EtcdBackupReconciler) setStateDesire(state backupState) error {
 		return fmt.Errorf("setControllerReference err: %s", err)
 	}
 
-	state.desired.pod = pod
-
+	desired.pod = pod
+	state.desired = &desired
 	return nil
 }
 
@@ -85,14 +89,17 @@ func (r *EtcdBackupReconciler) podForBackup(backup etcdv1alpha1.EtcdBackup, imag
 				{
 					Name:  backup.Name,
 					Image: image,
+					Args: []string{
+						"--etcd-url", backup.Spec.EtcdURL, // fixme:
+					},
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
-							corev1.ResourceLimitsCPU:    resource.MustParse("100m"),
-							corev1.ResourceLimitsMemory: resource.MustParse("50Mi"),
+							corev1.ResourceCPU:    resource.MustParse("100m"), // fixme: ResourceCPU
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
 						},
 						Requests: corev1.ResourceList{
-							corev1.ResourceRequestsCPU:    resource.MustParse("100m"),
-							corev1.ResourceRequestsMemory: resource.MustParse("50Mi"),
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
 						},
 					},
 				},
@@ -109,6 +116,17 @@ func (r *EtcdBackupReconciler) getState(ctx context.Context, req ctrl.Request) (
 	err := r.Get(ctx, req.NamespacedName, status.backup)
 	if err != nil {
 		return nil, client.IgnoreNotFound(err)
+	}
+
+	// fixme: 没有调用 r.setStateActual r.setStateDesire
+	err = r.setStateActual(ctx, status)
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.setStateDesire(status)
+	if err != nil {
+		return nil, err
 	}
 
 	return status, nil
@@ -169,7 +187,7 @@ func (r *EtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case state.actual.pod == nil:
 		action = CreateStatus{
 			Client: r.Client,
-			obj:    &corev1.Pod{},
+			obj:    state.desired.pod, // fixme: 不是 &corev1.Pod{}
 		}
 	case state.actual.pod.Status.Phase == corev1.PodFailed:
 		newBack := state.backup.DeepCopy()
@@ -202,5 +220,6 @@ func (r *EtcdBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *EtcdBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&etcdv1alpha1.EtcdBackup{}).
+		Owns(&corev1.Pod{}).
 		Complete(r)
 }

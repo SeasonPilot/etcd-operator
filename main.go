@@ -37,8 +37,9 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme             = runtime.NewScheme()
+	setupLog           = ctrl.Log.WithName("setup")
+	defaultBackupImage = "seasonpilot/etcd-operator-backup:v0.0.3"
 )
 
 func init() {
@@ -55,7 +56,7 @@ func main() {
 	var backImage string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.StringVar(&backImage, "back-image", "", "Image of backup etcd cluster")
+	flag.StringVar(&backImage, "back-image", defaultBackupImage, "Image of backup etcd cluster")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
