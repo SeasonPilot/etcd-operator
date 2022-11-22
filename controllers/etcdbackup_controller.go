@@ -43,8 +43,8 @@ func (r *EtcdBackupReconciler) setStateActual(ctx context.Context, state *backup
 	var actual backupStateContainer
 
 	key := client.ObjectKey{
-		Namespace: state.backup.Name,
-		Name:      state.backup.Namespace,
+		Namespace: state.backup.Namespace, // fixme: Namespace, Name 写反了
+		Name:      state.backup.Name,
 	}
 
 	actual.pod = &corev1.Pod{}
