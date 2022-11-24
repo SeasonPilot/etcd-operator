@@ -79,6 +79,26 @@ func (r *EtcdBackupReconciler) setStateDesire(state *backupState) error {
 }
 
 func (r *EtcdBackupReconciler) podForBackup(backup etcdv1alpha1.EtcdBackup, image string) *corev1.Pod {
+	var (
+		endPoint  string
+		secretRef *corev1.SecretEnvSource
+		path      string
+	)
+
+	switch backup.Spec.StorageType {
+	case etcdv1alpha1.EtcdBackupStorageTypeS3:
+		endPoint = backup.Spec.S3.EndPoint
+		secretRef = &corev1.SecretEnvSource{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: backup.Spec.S3.Secret,
+			},
+		}
+		path = backup.Spec.S3.Path
+	case etcdv1alpha1.EtcdBackupStorageTypeOSS:
+		endPoint = backup.Spec.OSS.EndPoint
+		path = backup.Spec.OSS.Path
+	}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      backup.Name,
@@ -91,6 +111,18 @@ func (r *EtcdBackupReconciler) podForBackup(backup etcdv1alpha1.EtcdBackup, imag
 					Image: image,
 					Args: []string{
 						"--etcd-url", backup.Spec.EtcdURL, // fixme:
+						"--backup-url", fmt.Sprintf("%s://%s", backup.Spec.StorageType, path), //fixme: 缺少 //
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "ENDPOINT",
+							Value: endPoint,
+						},
+					},
+					EnvFrom: []corev1.EnvFromSource{ // fixme:
+						{
+							SecretRef: secretRef,
+						},
 					},
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
