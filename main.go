@@ -39,7 +39,7 @@ import (
 var (
 	scheme             = runtime.NewScheme()
 	setupLog           = ctrl.Log.WithName("setup")
-	defaultBackupImage = "seasonpilot/etcd-operator-backup:v0.0.3"
+	defaultBackupImage = "seasonpilot/etcd-operator-backup:v0.0.8"
 )
 
 func init() {

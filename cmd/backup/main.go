@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/SeasonPilot/etcd-operator/api/v1alpha1"
 	"github.com/SeasonPilot/etcd-operator/pkg/file"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -38,9 +38,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	l := zapLogger.Sugar()
 	localPath := filepath.Join(backupTempDir, "snapshot.db")
 
+	l.Infof("backupURL: %s\n", backupURL) // backupURL: s3://season/snapshot.db
 	// backup etcd
 	err = snapshot.Save(ctx, zapLogger, clientv3.Config{
 		Endpoints:   []string{etcdURL},
@@ -50,18 +51,35 @@ func main() {
 		panic(err)
 	}
 
-	// upload
-	endpoint := "play.min.io"
-	accessKeyID := "Q3AM3UQ867SPQQA43P2F"
-	secretAccessKey := "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
-	backetName := "season"
-
-	uploader := file.NewS3Uploader(endpoint, accessKeyID, secretAccessKey)
-	size, err := uploader.Upload(ctx, backetName, "snapshot.db", localPath)
+	storageType, backetName, objectName, err := file.ParsePath(backupURL)
 	if err != nil {
 		return
 	}
 
-	fmt.Printf("upload size %d", size)
+	endpoint := os.Getenv("ENDPOINT")
+	accessKeyID := os.Getenv("MINIO_ACCESS_KEY")
+	secretAccessKey := os.Getenv("MINIO_SECRET_KEY")
+
+	switch storageType {
+	case string(v1alpha1.EtcdBackupStorageTypeS3):
+		size, err := handleS3(ctx, endpoint, accessKeyID, secretAccessKey, backetName, objectName, localPath)
+		if err != nil {
+			l.Errorf("s3 upload err: %s", err)
+			return
+		}
+		l.Infof("upload size %d", size)
+	case string(v1alpha1.EtcdBackupStorageTypeOSS):
+		handlerOSS()
+	}
+
+}
+
+func handleS3(ctx context.Context, endpoint, accessKeyID, secretAccessKey, backetName, objectName, localPath string) (int64, error) {
+	// upload
+	uploader := file.NewS3Uploader(endpoint, accessKeyID, secretAccessKey)
+	return uploader.Upload(ctx, backetName, objectName, localPath)
+}
+
+func handlerOSS() {
 
 }

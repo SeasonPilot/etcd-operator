@@ -28,10 +28,11 @@ type EtcdBackupSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	EtcdURL      string `json:"etcdUrl"`
-	StorageType  string `json:"storageType"`
+	EtcdURL      string            `json:"etcdUrl"`
+	StorageType  BackupStorageType `json:"storageType"`
 	BackupSource `json:",inline"`
 }
+type BackupStorageType string
 
 type BackupSource struct {
 	S3  S3BackupSource  `json:"s3,omitempty"`
@@ -39,13 +40,15 @@ type BackupSource struct {
 }
 
 type S3BackupSource struct {
+	EndPoint string `json:"endpoint"`
 	Path     string `json:"path"`
-	S3Secret string `json:"s3Secret"`
+	Secret   string `json:"secret"`
 }
 
 type OSSBackupSource struct {
-	Path      string `json:"path"`
-	OSSSecret string `json:"ossSecret"`
+	EndPoint string `json:"endpoint"`
+	Path     string `json:"path"`
+	Secret   string `json:"secret"`
 }
 
 type EtcdBackupPhase string
@@ -54,6 +57,9 @@ var (
 	EtcdBackupPhaseCompleted EtcdBackupPhase = "Completed"
 	EtcdBackupPhaseBackingup EtcdBackupPhase = "BackingUp"
 	EtcdBackupPhaseFailed    EtcdBackupPhase = "Failed"
+
+	EtcdBackupStorageTypeS3  BackupStorageType = "s3"
+	EtcdBackupStorageTypeOSS BackupStorageType = "oss"
 )
 
 // EtcdBackupStatus defines the observed state of EtcdBackup
